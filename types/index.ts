@@ -37,3 +37,13 @@ export interface AttendanceRecord {
 	status: 'present' | 'absent';
 	markedAt: string;
 }
+
+export interface ChatMessage {
+	id: string;
+	classId: string;
+	userId: string;
+	userName: string;
+	userRole: UserRole;
+	message: string;
+	createdAt: string;
+}

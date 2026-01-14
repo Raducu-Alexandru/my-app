@@ -87,6 +87,30 @@ service cloud.firestore {
       // No one can delete attendance records
       allow delete: if false;
     }
+    
+    // Chat Messages collection
+    match /chatMessages/{messageId} {
+      // Anyone authenticated can read chat messages
+      allow read: if isSignedIn();
+      
+      // Enrolled students and class teachers can send messages
+      // Only when the class is active
+      allow create: if isSignedIn() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      get(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.isActive == true &&
+                      (
+                        // Teacher of the class
+                        (getUserRole() == 'teacher' && 
+                         get(/databases/$(database)/documents/classes/$(request.resource.data.classId)).data.teacherId == request.auth.uid) ||
+                        // Enrolled student
+                        (getUserRole() == 'student' && 
+                         exists(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + request.resource.data.classId)))
+                      );
+      
+      // No one can update or delete messages
+      allow update: if false;
+      allow delete: if false;
+    }
   }
 }
 

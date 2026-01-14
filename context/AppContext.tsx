@@ -1,7 +1,7 @@
 import { auth, db } from '@/config/firebase';
-import { AttendanceRecord, Class, Enrollment, User } from '@/types';
+import { AttendanceRecord, ChatMessage, Class, Enrollment, User } from '@/types';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc, where } from 'firebase/firestore';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 interface AppContextType {
@@ -29,6 +29,11 @@ interface AppContextType {
 	markAttendance: (classId: string, studentId: string, studentName: string, status: 'present' | 'absent') => Promise<void>;
 	getClassAttendance: (classId: string) => AttendanceRecord[];
 	getStudentAttendance: (studentId: string) => AttendanceRecord[];
+
+	// Chat state
+	chatMessages: ChatMessage[];
+	sendChatMessage: (classId: string, message: string) => Promise<void>;
+	getClassChatMessages: (classId: string) => ChatMessage[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -38,6 +43,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 	const [classes, setClasses] = useState<Class[]>([]);
 	const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
 	const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+	const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 	const [loading, setLoading] = useState(true);
 
 	// Listen to auth state changes
@@ -129,6 +135,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
 				} as AttendanceRecord);
 			});
 			setAttendanceRecords(attendanceData);
+		});
+
+		return () => unsubscribe();
+	}, [currentUser]);
+
+	// Listen to chat messages collection
+	useEffect(() => {
+		if (!currentUser) {
+			setChatMessages([]);
+			return;
+		}
+
+		const chatQuery = query(collection(db, 'chatMessages'), orderBy('createdAt', 'asc'));
+		const unsubscribe = onSnapshot(chatQuery, (snapshot) => {
+			const messagesData: ChatMessage[] = [];
+			snapshot.forEach((doc) => {
+				messagesData.push({
+					id: doc.id,
+					...doc.data(),
+				} as ChatMessage);
+			});
+			setChatMessages(messagesData);
 		});
 
 		return () => unsubscribe();
@@ -239,6 +267,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
 		return attendanceRecords.filter((record) => record.studentId === studentId);
 	};
 
+	// Chat methods
+	const sendChatMessage = async (classId: string, message: string) => {
+		if (!currentUser || !message.trim()) {
+			return;
+		}
+
+		try {
+			await addDoc(collection(db, 'chatMessages'), {
+				classId,
+				userId: currentUser.id,
+				userName: currentUser.name,
+				userRole: currentUser.role,
+				message: message.trim(),
+				createdAt: new Date().toISOString(),
+			});
+		} catch (error) {
+			console.error('Error sending chat message:', error);
+			throw error;
+		}
+	};
+
+	const getClassChatMessages = (classId: string) => {
+		return chatMessages.filter((msg) => msg.classId === classId);
+	};
+
 	return (
 		<AppContext.Provider
 			value={{
@@ -259,6 +312,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 				markAttendance,
 				getClassAttendance,
 				getStudentAttendance,
+				chatMessages,
+				sendChatMessage,
+				getClassChatMessages,
 			}}
 		>
 			{children}

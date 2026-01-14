@@ -1,8 +1,9 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useApp } from '@/context/AppContext';
+import { downloadCSV, generateAttendanceCSV, generateCSVFilename } from '@/utils/csvExport';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 export default function ReportsScreen() {
 	const { currentUser, getTeacherClasses, getClassEnrollments, getClassAttendance } = useApp();
@@ -27,6 +28,21 @@ export default function ReportsScreen() {
 		const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
 
 		return { present, absent, total, percentage };
+	};
+
+	// Handle CSV export
+	const handleExportCSV = () => {
+		if (!selectedClass) return;
+
+		try {
+			const csvContent = generateAttendanceCSV(selectedClass, enrollments, attendanceRecords);
+			const filename = generateCSVFilename(selectedClass.name);
+			downloadCSV(csvContent, filename);
+			Alert.alert('Success', 'Attendance report downloaded successfully!');
+		} catch (error) {
+			console.error('Error exporting CSV:', error);
+			Alert.alert('Error', 'Failed to export attendance report. Please try again.');
+		}
 	};
 
 	return (
@@ -130,9 +146,14 @@ export default function ReportsScreen() {
 								{/* Date-wise Records */}
 								{attendanceRecords.length > 0 && (
 									<View style={styles.dateReportContainer}>
-										<ThemedText type="subtitle" style={styles.sectionTitle}>
-											Date-wise Records
-										</ThemedText>
+										<View style={styles.dateReportHeader}>
+											<ThemedText type="subtitle" style={styles.sectionTitle}>
+												Date-wise Records
+											</ThemedText>
+											<TouchableOpacity style={styles.exportButton} onPress={handleExportCSV}>
+												<ThemedText style={styles.exportButtonText}>📥 Export CSV</ThemedText>
+											</TouchableOpacity>
+										</View>
 
 										{Array.from(new Set(attendanceRecords.map((r) => r.date)))
 											.sort()
@@ -345,6 +366,28 @@ const styles = StyleSheet.create({
 	},
 	dateReportContainer: {
 		gap: 12,
+	},
+	dateReportHeader: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
+		marginBottom: 8,
+	},
+	exportButton: {
+		backgroundColor: '#4CAF50',
+		paddingHorizontal: 16,
+		paddingVertical: 10,
+		borderRadius: 8,
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 3,
+		elevation: 3,
+	},
+	exportButtonText: {
+		color: '#fff',
+		fontWeight: '600',
+		fontSize: 14,
 	},
 	dateCard: {
 		backgroundColor: '#fff',
